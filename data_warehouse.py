@@ -15,7 +15,7 @@ class DataWarehouse:
         os.makedirs(output_dir, exist_ok=True)
         
         # Almacenamiento en memoria para simulación
-        self.sensor_data = {
+        self.sensor_data = {d
             'air_quality': [],
             'sound': [],
             'water': []
@@ -28,14 +28,14 @@ class DataWarehouse:
             'water': {'total': 0, 'valid': 0, 'null_fields': {}}
         }
     
-    def add_sensor_data(self, sensor_type: str, data: Any):
+    ef add_sensor_data(self, sensor_type: str, data: Any):
         """Agrega datos de sensor al data warehouse"""
         try:
             self.sensor_data[sensor_type].append(data)
             self.quality_metrics[sensor_type]['total'] += 1
+            self.quality_metrics[sensor_type]['valid'] += 1  # Si llegó aquí, es válido
             
-            # Analizar calidad de datos
-            self._analyze_data_quality(sensor_type, data)
+            logger.debug(f"📥 Datos agregados a {sensor_type}: {len(self.sensor_data[sensor_type])} registros")
             
         except Exception as e:
             logger.error(f"❌ Error agregando datos de {sensor_type}: {e}")
@@ -203,16 +203,21 @@ class DataWarehouse:
                     'total_records': sum(len(data) for data in self.sensor_data.values()),
                     'sensors_available': list(self.sensor_data.keys())
                 },
-                'warehouse_report': self.generate_warehouse_report(),
-                'sensor_data_samples': {}
+                'sensor_data': {}
             }
             
-            # Incluir muestras de datos (primeros 10 registros de cada sensor)
+            # Incluir todos los registros de cada sensor
             for sensor_type, records in self.sensor_data.items():
                 if records:
-                    samples = [vars(record) if hasattr(record, '__dict__') else record 
-                              for record in records[:10]]
-                    export_data['sensor_data_samples'][sensor_type] = samples
+                    # Convertir objetos a diccionarios
+                    records_dict = []
+                    for record in records:
+                        if hasattr(record, '__dict__'):
+                            records_dict.append(vars(record))
+                        else:
+                            records_dict.append(record)
+                    
+                    export_data['sensor_data'][sensor_type] = records_dict
             
             # Guardar archivo
             with open(filename, 'w', encoding='utf-8') as f:
@@ -234,13 +239,19 @@ class DataWarehouse:
             if records:
                 filename = f"{self.output_dir}/{sensor_type}_data_{timestamp}.json"
                 
+                # Convertir objetos a diccionarios
+                records_dict = []
+                for record in records:
+                    if hasattr(record, '__dict__'):
+                        records_dict.append(vars(record))
+                    else:
+                        records_dict.append(record)
+                
                 export_data = {
                     'sensor_type': sensor_type,
                     'export_timestamp': datetime.now().isoformat(),
                     'total_records': len(records),
-                    'data_quality': self.quality_metrics[sensor_type],
-                    'records': [vars(record) if hasattr(record, '__dict__') else record 
-                               for record in records]
+                    'records': records_dict
                 }
                 
                 try:

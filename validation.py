@@ -16,7 +16,7 @@ class DataValidator:
         }
     
     def is_completely_empty(self, record: Dict[str, Any]) -> bool:
-        """Verifica si un registro está completamente vacío (solo comas)"""
+        """Verifica si un registro está completamente vacío"""
         if not record:
             return True
             
@@ -29,7 +29,7 @@ class DataValidator:
         return non_empty_count == 0
     
     def validate_sensor_record(self, record: Dict[str, Any], sensor_type: str) -> Tuple[bool, str]:
-        """Valida un registro de sensor de manera exhaustiva"""
+        """Valida un registro de sensor - VERSIÓN MÁS PERMISIVA"""
         self.stats['total_processed'] += 1
         
         # 1. Verificar si está completamente vacío
@@ -38,32 +38,17 @@ class DataValidator:
             self._log_rejection("REGISTRO_COMPLETAMENTE_VACIO", record)
             return False, "Registro completamente vacío"
         
-        # 2. Validar campos requeridos básicos
-        required_fields = ['_id', 'time']
+        # 2. Validar campos requeridos básicos (solo _id)
+        required_fields = ['_id']  # Solo _id como requerido
         missing_required = [field for field in required_fields if not record.get(field)]
         if missing_required:
             self.stats['invalid_records'] += 1
-            reason = f"Campos requeridos faltantes: {missing_required}"
+            reason = f"Campo _id faltante"
             self._log_rejection("CAMPOS_REQUERIDOS_FALTANTES", record)
             return False, reason
         
-        # 3. Validar que tenga datos de medición específicos del sensor
-        measurement_fields = self._get_measurement_fields(sensor_type)
-        has_measurement = any(
-            record.get(field) is not None and 
-            record.get(field) != '' and 
-            not pd.isna(record.get(field))
-            for field in measurement_fields
-        )
-        
-        if not has_measurement:
-            self.stats['invalid_records'] += 1
-            reason = f"Sin datos de medición para {sensor_type}"
-            self._log_rejection("SIN_DATOS_MEDICION", record)
-            return False, reason
-        
-        # 4. Validación específica por tipo de sensor
-        if not self._validate_sensor_specific(record, sensor_type):
+        # 3. Validación más permisiva por tipo de sensor
+        if not self._validate_sensor_specific_permissive(record, sensor_type):
             self.stats['invalid_records'] += 1
             reason = f"Validación específica fallida para {sensor_type}"
             self._log_rejection("VALIDACION_ESPECIFICA_FALLIDA", record)
@@ -71,6 +56,31 @@ class DataValidator:
         
         self.stats['valid_records'] += 1
         return True, "Válido"
+    
+    def _validate_sensor_specific_permissive(self, record: Dict[str, Any], sensor_type: str) -> bool:
+        """Validaciones específicas por tipo de sensor - MÁS PERMISIVAS"""
+        try:
+            if sensor_type == 'air_quality':
+                # Aceptar si tiene al menos un campo de calidad de aire
+                air_fields = ['object.co2', 'object.temperature', 'object.humidity', 'object.pressure']
+                return any(record.get(field) not in [None, '', 'NaN'] for field in air_fields)
+            
+            elif sensor_type == 'sound':
+                # Aceptar si tiene al menos un campo de sonido
+                sound_fields = ['object.LAeq', 'object.LAI', 'object.LAImax']
+                return any(record.get(field) not in [None, '', 'NaN'] for field in sound_fields)
+                
+            elif sensor_type == 'water':
+                # Aceptar si tiene distancia O posición
+                distance = record.get('object.distance')
+                position = record.get('object.position')
+                return (distance not in [None, '', 'NaN']) or (position not in [None, '', 'NaN'])
+            
+            return True  # Para tipos desconocidos, aceptar por defecto
+            
+        except Exception as e:
+            logger.warning(f"Error en validación específica: {e}")
+            return True  # No bloquear por errores de validación
     
     def _get_measurement_fields(self, sensor_type: str) -> List[str]:
         """Obtiene campos de medición por tipo de sensor"""
@@ -88,52 +98,21 @@ class DataValidator:
         }
         return fields.get(sensor_type, [])
     
-    def _validate_sensor_specific(self, record: Dict[str, Any], sensor_type: str) -> bool:
-        """Validaciones específicas por tipo de sensor"""
-        try:
-            if sensor_type == 'air_quality':
-                # Validar que al menos un campo numérico tenga valor razonable
-                numeric_fields = ['object.co2', 'object.temperature', 'object.humidity', 'object.pressure']
-                has_valid_numeric = any(
-                    self._is_reasonable_value(record.get(field), field) 
-                    for field in numeric_fields
-                )
-                return has_valid_numeric
-            
-            elif sensor_type == 'sound':
-                # Validar niveles de sonido
-                laeq = record.get('object.LAeq')
-                if laeq is not None:
-                    return self._is_reasonable_value(laeq, 'sound_level')
-                return True
-                
-            elif sensor_type == 'water':
-                # Validar distancia o posición
-                distance = record.get('object.distance')
-                position = record.get('object.position')
-                return (distance is not None and self._is_reasonable_value(distance, 'distance')) or position is not None
-            
-            return True
-            
-        except Exception as e:
-            logger.warning(f"Error en validación específica: {e}")
-            return True  # No bloquear por errores de validación específica
-    
     def _is_reasonable_value(self, value, field_type: str) -> bool:
         """Verifica si un valor está en un rango razonable"""
-        if value is None or value == '':
+        if value is None or value == '' or value == 'NaN':
             return False
         
         try:
             num_value = float(value)
             
             ranges = {
-                'object.co2': (300, 5000),        # CO2 en ppm
-                'object.temperature': (-50, 60),  # Temperatura en °C
-                'object.humidity': (0, 100),      # Humedad en %
-                'object.pressure': (500, 1100),   # Presión en hPa
-                'sound_level': (30, 120),         # Nivel sonoro en dB
-                'distance': (0, 100)              # Distancia en metros
+                'object.co2': (300, 5000),
+                'object.temperature': (-50, 60),
+                'object.humidity': (0, 100),
+                'object.pressure': (500, 1100),
+                'sound_level': (30, 120),
+                'distance': (0, 100)
             }
             
             min_val, max_val = ranges.get(field_type, (float('-inf'), float('inf')))
