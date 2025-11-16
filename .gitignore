@@ -1,0 +1,209 @@
+# =================================
+# 🐍 PYTHON - IGNORES ESPECÍFICOS
+# =================================
+
+# Entornos virtuales
+sensor_env/
+venv/
+env/
+.venv/
+ENV/
+
+# Archivos de Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Archivos de coverage de testing
+.coverage
+.coverage.*
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# =================================
+# 📊 DATOS - ARCHIVOS GRANDES/GENERADOS
+# =================================
+
+# Datos procesados por el ETL
+processed_data/
+data_warehouse/
+*.parquet
+*.json
+*.csv
+
+# Logs del sistema
+logs/
+*.log
+*.log.*
+
+# Archivos de datos temporales
+*.tmp
+*.temp
+.temp/
+
+# Backup files
+*.bak
+*.backup
+
+# =================================
+# 🔧 CONFIGURACIÓN - ARCHIVOS SENSIBLES
+# =================================
+
+# Variables de entorno
+.env
+.env.local
+.env.prod
+.env.dev
+
+# Configuraciones personales
+.config/
+personal_settings.py
+
+# Credenciales
+*.key
+*.pem
+*.cert
+kafka_ssl/
+
+# =================================
+# 🐳 DOCKER - IGNORES
+# =================================
+
+# Docker
+docker-compose.override.yml
+.docker/
+
+# =================================
+# 🛠 IDE/EDITORES - CONFIGURACIONES
+# =================================
+
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Eclipse
+.project
+.pydevproject
+
+# =================================
+# 🖥 SISTEMA OPERATIVO
+# =================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# =================================
+# 📦 PAQUETES/INSTALACIONES
+# =================================
+
+# Instalaciones de paquetes
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+
+# =================================
+# 🚀 PROYECTO ESPECÍFICO
+# =================================
+
+# Archivos de instalación temporal
+requirements_fixed.txt
+install.sh.bak
+
+# Kafka temporary files
+kafka-logs/
+zookeeper-data/
+
+# Test outputs
+test_output/
+benchmark_results/
+
+# =================================
+# 📝 NOTAS PERSONALES
+# =================================
+
+# Archivos de notas del desarrollador
+notes.txt
+todo.md
+*.md.bak
+
+# =================================
+# 🎯 EXCEPCIONES - LO QUE SÍ DEBE INCLUIRSE
+# =================================
+
+# Mantener estos archivos aunque estén en carpetas ignoradas
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Mantener el README aunque haya otros .md
+!README.md
+
+# Mantener requirements.txt principal
+!requirements.txt
