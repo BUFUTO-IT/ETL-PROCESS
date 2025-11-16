@@ -11,14 +11,11 @@ fi
 
 # Obtener el usuario normal
 NORMAL_USER=$(logname)
-HOME_DIR=$(eval echo "~$NORMAL_USER")
 echo "👤 Usuario normal: $NORMAL_USER"
 
 # Crear directorios necesarios
 echo "📁 Creando directorios..."
-mkdir -p logs
-mkdir -p processed_data
-mkdir -p $HOME_DIR/Desktop/ETL-KAFKA/logs 2>/dev/null || true
+mkdir -p logs processed_data data_warehouse
 
 # Crear entorno virtual como usuario normal
 echo "🐍 Creando entorno virtual..."
@@ -30,32 +27,58 @@ sudo -u $NORMAL_USER bash -c "source venv/bin/activate && pip install -r require
 
 # Configurar permisos
 echo "🔒 Configurando permisos..."
-chown -R $NORMAL_USER:$NORMAL_USER venv/
-chown -R $NORMAL_USER:$NORMAL_USER logs/
-chown -R $NORMAL_USER:$NORMAL_USER processed_data/
+chown -R $NORMAL_USER:$NORMAL_USER venv/ logs/ processed_data/ data_warehouse/
 
-# Kafka con Docker (usa sudo para docker)
+# Kafka con Docker
 echo "🐳 Iniciando Kafka..."
 docker compose down 2>/dev/null
 docker compose up -d
 
 # Esperar a que Kafka esté listo
-echo "⏳ Esperando a que Kafka esté listo..."
-sleep 20
+echo "⏳ Esperando a que Kafka esté listo (30 segundos)..."
+sleep 30
+
+# Obtener el nombre REAL del contenedor de Kafka
+KAFKA_CONTAINER=$(docker ps --filter "name=kafka" --format "{{.Names}}" | grep kafka | head -1)
+
+if [ -z "$KAFKA_CONTAINER" ]; then
+    echo "❌ No se pudo encontrar el contenedor de Kafka"
+    echo "📋 Contenedores running:"
+    docker ps --format "table {{.Names}}\t{{.Status}}"
+    echo "🔄 Intentando reiniciar Kafka..."
+    docker compose restart kafka
+    sleep 15
+    KAFKA_CONTAINER=$(docker ps --filter "name=kafka" --format "{{.Names}}" | grep kafka | head -1)
+fi
+
+if [ -z "$KAFKA_CONTAINER" ]; then
+    echo "❌ Kafka no está corriendo después del reinicio"
+    echo "📋 Logs de Kafka:"
+    docker compose logs kafka
+    exit 1
+fi
+
+echo "🔍 Contenedor de Kafka detectado: $KAFKA_CONTAINER"
 
 # Crear topics
 echo "📊 Creando topics..."
-docker exec etl-kafka-1 kafka-topics --create --topic sensor-air-quality --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 2>/dev/null || echo "✅ Topic air-quality ya existe"
-docker exec etl-kafka-1 kafka-topics --create --topic sensor-sound --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 2>/dev/null || echo "✅ Topic sound ya existe"
-docker exec etl-kafka-1 kafka-topics --create --topic sensor-water --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 2>/dev/null || echo "✅ Topic water ya existe"
+for topic in "sensor-air-quality" "sensor-sound" "sensor-water"; do
+    if docker exec $KAFKA_CONTAINER kafka-topics --create --topic $topic --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 2>/dev/null; then
+        echo "✅ Topic $topic creado"
+    else
+        echo "✅ Topic $topic ya existe"
+    fi
+done
 
 # Verificar topics
 echo "📋 Topics disponibles:"
-docker exec etl-kafka-1 kafka-topics --list --bootstrap-server localhost:9092
+docker exec $KAFKA_CONTAINER kafka-topics --list --bootstrap-server localhost:9092
 
 echo ""
 echo "✅ Setup completado con sudo"
 echo ""
 echo "📝 Ahora ejecuta SIN sudo:"
 echo "   source venv/bin/activate"
-echo "   python start_etl_fixed.py"
+echo "   python kafka_producer_fixed.py"
+echo ""
+echo "🌐 Kafka UI disponible en: http://localhost:8080"
