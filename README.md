@@ -27,7 +27,19 @@ Sistema completo de procesamiento ETL (Extract, Transform, Load) para datos de s
 ### Paso 1: Clonar/Descargar el Proyecto
 ```bash
 # Si usas Git
-git clone <tu-repositorio>
-cd sensor-etl-system
+git clone https://github.com/BUFUTO-IT/ETL-PROCESS.git
+cd ETL-PROCESS
 
+
+# Correr el archivo setup.sh
+# Linux
+source setup.sh
+# Windows
+setup.sh
+
+# Correr Consumer una terminal
+python kafka_consumer_etl_fixed.py
+
+# Correr Producer otra terminal
+python kafka_producer_fixed.py
 # O descarga manualmente los archivos

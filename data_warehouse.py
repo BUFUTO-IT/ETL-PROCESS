@@ -15,7 +15,7 @@ class DataWarehouse:
         os.makedirs(output_dir, exist_ok=True)
         
         # Almacenamiento en memoria para simulación
-        self.sensor_data = {d
+        self.sensor_data = {
             'air_quality': [],
             'sound': [],
             'water': []
@@ -28,7 +28,7 @@ class DataWarehouse:
             'water': {'total': 0, 'valid': 0, 'null_fields': {}}
         }
     
-    ef add_sensor_data(self, sensor_type: str, data: Any):
+    def add_sensor_data(self, sensor_type: str, data: Any):
         """Agrega datos de sensor al data warehouse"""
         try:
             self.sensor_data[sensor_type].append(data)
