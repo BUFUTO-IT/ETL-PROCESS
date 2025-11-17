@@ -61,7 +61,7 @@ processed_data/
 data_warehouse/
 *.parquet
 *.json
-*.csv
+# *.csv
 
 # Logs del sistema
 logs/
