@@ -9,17 +9,32 @@ from config import KafkaConfig, ETLConfig
 from schemas import AirQualityData, SoundData, WaterData
 from validation import DataValidator
 from data_warehouse import DataWarehouse
+from writers.firestore_writer import FirestoreWriter
+from writers.supabase_writer import SupabaseWriter
 import os
 
-# Configurar logging
+# Garantizar permisos en runtime
+os.makedirs("/app/data_warehouse", exist_ok=True)
+os.makedirs("/app/processed_data", exist_ok=True)
+
+try:
+    os.chmod("/app/data_warehouse", 0o777)
+    os.chmod("/app/processed_data", 0o777)
+except:
+    pass
+
+LOG_DIR = "/tmp/etl_logs"
+os.makedirs(LOG_DIR, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/etl_processor.log'),
+        #logging.FileHandler(f"{LOG_DIR}/etl_processor.log"),
         logging.StreamHandler()
     ]
 )
+
 logger = logging.getLogger(__name__)
 
 class SensorDataETL:
@@ -400,6 +415,17 @@ class SensorDataETL:
                 self.metrics['processing_errors'] += 1
                 return False
             
+            # ============================================
+            # 📌 GUARDAR EN FIREBASE Y SUPABASE
+            # ============================================
+            record_dict = vars(transformed_data)
+
+            # Guardar en Firestore (real time)
+            FirestoreWriter.save_reading(sensor_type, record_dict)
+
+            # Guardar en Supabase/Postgres (histórico)
+            SupabaseWriter.save_sensor_record(sensor_type, record_dict)
+
             # Agregar al data warehouse
             self.warehouse.add_sensor_data(sensor_type, transformed_data)
             
@@ -452,7 +478,7 @@ class SensorDataETL:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{ETLConfig.OUTPUT_DIR}/{sensor_type}_batch_{timestamp}.parquet"
             
-            df.to_parquet(filename, index=False)
+            #df.to_parquet(filename, index=False)
             logger.debug(f"💾 Lote guardado: {filename}")
             
         except Exception as e:
