@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class KafkaConfig:
-    BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
+    BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'host.docker.internal:9092')
     TOPIC_AIR_QUALITY = 'sensor-air-quality'
     TOPIC_SOUND = 'sensor-sound'
     TOPIC_WATER = 'sensor-water'
