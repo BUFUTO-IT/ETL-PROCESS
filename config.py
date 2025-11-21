@@ -67,3 +67,21 @@ class ETLConfig:
     # Rutas de salida
     OUTPUT_DIR = 'processed_data'
     LOG_DIR = 'logs'
+
+# Añadir al final de tu config.py
+class APIConfig:
+    """Configuración para el API sender"""
+    # ✅ CORREGIDO: URL con protocolo
+    BASE_URL = "http://localhost:8000"  # Ahora con http://
+    
+    # API Key si es requerida
+    API_KEY = "emergentes"  # Opcional
+    
+    # Timeout en segundos
+    TIMEOUT = 30
+    
+    # Intentos de reintento
+    RETRY_ATTEMPTS = 3
+    
+    # Habilitar/deshabilitar envío
+    ENABLED = True

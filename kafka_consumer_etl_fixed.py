@@ -1,3 +1,5 @@
+# Añadir junto con los otros imports
+from api_sender import SensorDataAPISender
 import json
 import logging
 from kafka import KafkaConsumer
@@ -5,7 +7,7 @@ from typing import Dict, Any, Optional, List
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from config import KafkaConfig, ETLConfig
+from config import KafkaConfig, ETLConfig, APIConfig
 from schemas import AirQualityData, SoundData, WaterData
 from validation import DataValidator
 from data_warehouse import DataWarehouse
@@ -57,12 +59,27 @@ class SensorDataETL:
                 'water': []
             }
             
+            # ✅ INICIALIZAR API Sender
+            self.api_sender = SensorDataAPISender(
+                base_url=APIConfig.BASE_URL,
+                api_key=APIConfig.API_KEY,
+                timeout=APIConfig.TIMEOUT
+            )
+            
             logger.info("✅ Consumidor ETL inicializado correctamente")
+            
+            # Verificar conexión con el backend
+            if APIConfig.ENABLED:
+                if self.api_sender.health_check():
+                    logger.info("✅ Backend disponible")
+                else:
+                    logger.warning("⚠️ Backend no disponible, los datos se guardarán solo localmente")
             
         except Exception as e:
             logger.error(f"❌ Error inicializando consumidor ETL: {e}")
             raise
-    
+
+
     def extract_signal_metrics(self, data: Dict[str, Any]) -> Dict[str, Optional[float]]:
         """Extrae y calcula métricas de señal"""
         rssi_values = []
@@ -494,42 +511,114 @@ class SensorDataETL:
             self.consumer.close()
             self.log_final_metrics()
     
-    def export_warehouse_reports(self):
-        """Exporta reportes del data warehouse periódicamente"""
-        try:
-            # Exportar JSON individuales por sensor
-            individual_files = self.warehouse.export_individual_sensor_json()
-            
-            # Exportar reporte consolidado
-            consolidated_file = self.warehouse.export_to_json()
-            
-            logger.info(f"📊 Reportes exportados: {len(individual_files)} archivos individuales + 1 consolidado")
-            
-        except Exception as e:
-            logger.error(f"❌ Error exportando reportes: {e}")
+        def export_warehouse_reports(self):
+            """Exporta reportes al backend API en lugar de archivos JSON"""
+            try:
+                if not APIConfig.ENABLED:
+                    logger.info("🚫 Envío a API deshabilitado en configuración")
+                    return
+                
+                # ✅ CORREGIDO: Verificar si el warehouse tiene los atributos esperados
+                if not hasattr(self.warehouse, 'air_quality_data') or not hasattr(self.warehouse, 'sound_data') or not hasattr(self.warehouse, 'water_data'):
+                    logger.error("❌ El DataWarehouse no tiene la estructura esperada")
+                    # Fallback a JSON local
+                    self._fallback_to_local_json()
+                    return
+                
+                # Obtener todos los datos del warehouse
+                all_data = {
+                    'air_quality': self.warehouse.air_quality_data,
+                    'sound': self.warehouse.sound_data, 
+                    'water': self.warehouse.water_data
+                }
+                
+                # Verificar que hay datos para enviar
+                total_records = sum(len(records) for records in all_data.values())
+                if total_records == 0:
+                    logger.info("📭 No hay datos nuevos para enviar al backend")
+                    return
+                
+                logger.info(f"📤 Preparando envío de {total_records} registros al backend...")
+                
+                # Intentar enviar datos unificados
+                success = self.api_sender.send_unified_sensor_data(all_data)
+                
+                if success:
+                    logger.info("✅ Todos los datos enviados exitosamente al backend")
+                else:
+                    logger.error("❌ Falló el envío al backend, los datos se mantienen localmente")
+                    self._fallback_to_local_json()
+                
+            except Exception as e:
+                logger.error(f"❌ Error exportando reportes al backend: {e}")
+                self._fallback_to_local_json()
     
+    def _fallback_to_local_json(self):
+        """Fallback para guardar datos localmente cuando falla el API"""
+        try:
+            # ✅ AÑADIR: Verificar que el warehouse tenga los métodos necesarios
+            if hasattr(self.warehouse, 'export_individual_sensor_json') and hasattr(self.warehouse, 'export_to_json'):
+                individual_files = self.warehouse.export_individual_sensor_json()
+                consolidated_file = self.warehouse.export_to_json()
+                logger.info(f"💾 Fallback: Datos guardados localmente en {len(individual_files)} archivos")
+            else:
+                logger.error("❌ El DataWarehouse no tiene métodos de exportación JSON")
+        except Exception as fallback_error:
+            logger.error(f"❌ Error en fallback local: {fallback_error}")
+
     def export_final_reports(self):
-        """Exporta reportes finales completos"""
+        """Exporta reportes finales al backend"""
         try:
-            logger.info("📋 Generando reportes finales del data warehouse...")
+            logger.info("📋 Enviando reportes finales al backend...")
             
-            # Reporte completo
-            warehouse_report = self.warehouse.generate_warehouse_report()
+            if not APIConfig.ENABLED:
+                logger.info("🚫 Envío a API deshabilitado, generando solo reportes locales")
+                # Generar reportes locales como fallback
+                if hasattr(self.warehouse, 'export_to_json') and hasattr(self.warehouse, 'export_individual_sensor_json'):
+                    final_file = self.warehouse.export_to_json("data_warehouse_final_report.json")
+                    individual_files = self.warehouse.export_individual_sensor_json()
+                return
             
-            # ✅✅✅ EXPORTAR TODOS LOS JSON ✅✅✅
-            final_file = self.warehouse.export_to_json("data_warehouse_final_report.json")
-            individual_files = self.warehouse.export_individual_sensor_json()  # ✅ LÍNEA AÑADIDA
+            # Obtener todos los datos para envío final
+            all_data = {
+                'air_quality': self.warehouse.air_quality_data,
+                'sound': self.warehouse.sound_data,
+                'water': self.warehouse.water_data
+            }
             
-            logger.info(f"🎉 Reportes finales generados:")
-            logger.info(f"   📁 Reporte consolidado: {final_file}")
-            logger.info(f"   📊 Reportes individuales: {len(individual_files)} archivos")  # ✅ AHORA SÍ FUNCIONA
+            total_records = sum(len(records) for records in all_data.values())
             
-            # Mostrar resumen ejecutivo
-            self.print_executive_summary(warehouse_report)
+            if total_records > 0:
+                # Enviar datos unificados
+                success = self.api_sender.send_unified_sensor_data(all_data)
+                
+                if success:
+                    logger.info(f"✅ Reporte final enviado: {total_records} registros")
+                else:
+                    logger.error("❌ Falló el envío del reporte final")
+            else:
+                logger.info("📭 No hay datos para el reporte final")
             
+            # Generar reporte local como backup siempre
+            try:
+                if hasattr(self.warehouse, 'generate_warehouse_report'):
+                    warehouse_report = self.warehouse.generate_warehouse_report()
+                
+                if hasattr(self.warehouse, 'export_to_json'):
+                    final_file = self.warehouse.export_to_json("data_warehouse_final_report.json")
+                    logger.info(f"💾 Backup local guardado: {final_file}")
+                
+                # Mostrar resumen ejecutivo
+                if 'warehouse_report' in locals():
+                    self.print_executive_summary(warehouse_report)
+                
+            except Exception as local_error:
+                logger.error(f"❌ Error generando backup local: {local_error}")
+                
         except Exception as e:
-            logger.error(f"❌ Error generando reportes finales: {e}")
+            logger.error(f"❌ Error en exportación final: {e}")
     
+
     def print_executive_summary(self, report: Dict[str, Any]):
         """Muestra un resumen ejecutivo del procesamiento"""
         logger.info("=" * 70)
