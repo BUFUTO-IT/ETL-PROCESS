@@ -1,0 +1,9 @@
+# consumer/requirements.txt - VERSIÓN FINAL
+pika==1.3.2
+psycopg2-binary==2.9.9
+redis==5.0.1
+SQLAlchemy==2.0.23
+pandas==2.1.4
+numpy==1.26.4  # Actualizado a versión compatible con Python 3.12
+python-dotenv==1.0.0
+setuptools==70.0.0  # AÑADIDO: incluye distutils

@@ -1,0 +1,11 @@
+fastapi==0.104.1
+uvicorn==0.24.0
+redis==5.0.1
+python-dotenv==1.0.0
+pandas==2.1.3
+scikit-learn==1.3.2
+joblib==1.3.2
+matplotlib==3.8.2
+seaborn==0.13.0
+
+numpy==1.26.0  # Cambia a esta versión o superior

@@ -1,46 +1,55 @@
+# docker-compose.yml (versión limpia)
 version: '3.8'
 
 services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
+  postgres:
+    image: postgres:15-alpine
+    container_name: iot-postgres
     environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    depends_on:
-      - zookeeper
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      POSTGRES_DB: iot_monitoring
+      POSTGRES_USER: iot_user
+      POSTGRES_PASSWORD: iot_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
     ports:
-      - "9092:9092"
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - iot-network
 
-  kafka-ui:
-    image: provectuslabs/kafka-ui
+  redis:
+    image: redis:7-alpine
+    container_name: iot-redis
     ports:
-      - "8080:8080"
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - iot-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: iot-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
     environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
-    depends_on:
-      - kafka
-
-  etl-consumer:
-    build: .
-    command: ["python", "kafka_consumer_etl_fixed.py"]
-    depends_on:
-      - kafka
+      RABBITMQ_DEFAULT_USER: iot_user
+      RABBITMQ_DEFAULT_PASS: iot_password
+      RABBITMQ_DEFAULT_VHOST: /
     volumes:
-      - .:/app
-      - ./logs:/app/logs
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - iot-network
 
-  etl-producer:
-    build: .
-    command: ["python", "kafka_producer_fixed.py"]
-    depends_on:
-      - kafka
-    volumes:
-      - .:/app
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+
+networks:
+  iot-network:
+    driver: bridge
